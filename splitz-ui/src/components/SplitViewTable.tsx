@@ -101,7 +101,7 @@ export default function SplitViewTable() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8000/ocr-to-json-gemini', {
+      const response = await fetch('http://localhost:8000/extract-receipt-multipart-nemotron', {
         method: 'POST',
         body: formData,
       });
@@ -454,27 +454,54 @@ export default function SplitViewTable() {
                 ))}
 
                 {/* Items Subtotal Row */}
-                <tr className="bg-slate-900/50 border-b border-slate-700">
-                  <td className="px-4 py-3 font-semibold text-slate-300">Subtotal</td>
+                <tr className="bg-amber-950/40 border-b-2 border-amber-600/60">
+                  <td className="px-4 py-3 font-bold text-amber-100">Items Subtotal</td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3 text-right font-semibold text-white">
+                  <td className="px-4 py-3 text-right font-bold text-amber-50">
                     ${items.reduce((sum, item) => sum + (item.qty * item.price), 0).toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-white">
+                  <td className="px-4 py-3 text-right font-bold text-amber-50">
                     ${items.reduce((sum, item) => sum + (item.hst ? item.qty * item.price * HST_RATE : 0), 0).toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-white">
+                  <td className="px-4 py-3 text-right font-bold text-amber-50">
                     ${getItemsSubtotal().toFixed(2)}
                   </td>
                   {persons.map((person) => (
-                    <td key={person.id} className="px-4 py-3 text-center font-semibold text-white">
+                    <td key={person.id} className="px-4 py-3 text-center font-bold text-amber-50">
                       ${items
                         .filter((item) => item.assignments[person.id])
                         .reduce((sum, item) => sum + calculateItemTotal(item), 0)
                         .toFixed(2)}
                     </td>
                   ))}
+                </tr>
+
+                {/* Summary Rows - Fees, Discounts, Adjustments */}
+                <tr className="bg-slate-950/60 border-b border-slate-600/40">
+                  <td className="px-4 py-3 font-bold text-slate-200">Fees</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-300">
+                    ${fees.reduce((sum, fee) => sum + (fee.hst ? fee.amount * HST_RATE : 0), 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-100">
+                    ${getFeeTotal().toFixed(2)}
+                  </td>
+                  {persons.map((person) => {
+                    const personFeeTotal = fees.reduce((sum, fee) => {
+                      const feeAmount = fee.hst ? fee.amount * (1 + HST_RATE) : fee.amount;
+                      const splitCount = fee.splitAmong.length > 0 ? fee.splitAmong.length : persons.length;
+                      const isSplitAmong = fee.splitAmong.length === 0 || fee.splitAmong.includes(person.id);
+                      return isSplitAmong ? sum + feeAmount / splitCount : sum;
+                    }, 0);
+                    return (
+                      <td key={person.id} className="px-4 py-3 text-center font-semibold text-slate-100">
+                        ${personFeeTotal.toFixed(2)}
+                      </td>
+                    );
+                  })}
                 </tr>
 
                 {/* Fees Rows */}
@@ -571,15 +598,17 @@ export default function SplitViewTable() {
                 )}
 
                 {/* Grand Total Row */}
-                <tr className="bg-green-900/30 border-t-2 border-green-500">
-                  <td colSpan={6} className="px-4 py-3 text-right font-bold text-white text-lg">
-                    TOTAL:
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-green-300 text-lg">
+                <tr className="bg-gradient-to-r from-emerald-900 to-green-900 border-t-2 border-emerald-400">
+                  <td className="px-4 py-3 font-bold text-emerald-50 text-lg">TOTAL</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-200 text-lg">
                     ${getGrandTotal().toFixed(2)}
                   </td>
                   {persons.map((person) => (
-                    <td key={person.id} className="px-4 py-3 text-center font-bold text-white">
+                    <td key={person.id} className="px-4 py-3 text-center font-bold text-emerald-50 text-lg">
                       ${getPersonTotal(person.id).toFixed(2)}
                     </td>
                   ))}
