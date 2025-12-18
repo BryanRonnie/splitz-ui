@@ -53,6 +53,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<ExtractResponse['receipt'] | null>(null)
+  const [showDebug, setShowDebug] = useState(false)
 
   const handleItemsFiles = (files: File[]) => {
     setItemsFiles(prev => [...prev, ...files])
@@ -101,6 +102,14 @@ function App() {
       if (!data.success) {
         throw new Error(data.errors?.join(', ') || 'Extraction failed')
       }
+
+      console.log('📦 Raw receipt from backend:', data.receipt)
+      console.log('   subtotal_items:', data.receipt.subtotal_items)
+      console.log('   total_tax_reported:', data.receipt.total_tax_reported)
+      console.log('   total_tax_calculated:', data.receipt.total_tax_calculated)
+      console.log('   total_fees:', data.receipt.total_fees)
+      console.log('   total_discount:', data.receipt.total_discount)
+      console.log('   grand_total:', data.receipt.grand_total)
 
       setReceipt(data.receipt)
       setStage('review')
@@ -186,6 +195,13 @@ function App() {
     const taxTotal = receipt.total_tax_reported ?? receipt.total_tax_calculated ?? 0
     const grandTotal = receipt.grand_total ?? itemsSubtotal + feesTotal + taxTotal - discountsTotal
 
+    console.log('💰 Calculated totals:')
+    console.log('   itemsSubtotal:', itemsSubtotal)
+    console.log('   feesTotal:', feesTotal)
+    console.log('   discountsTotal:', discountsTotal)
+    console.log('   taxTotal:', taxTotal)
+    console.log('   grandTotal:', grandTotal)
+
     const summaryRows = [
       { label: 'Items Subtotal', amount: itemsSubtotal, hstAmount: taxTotal },
       { label: 'Fees', amount: feesTotal, hstAmount: 0 },
@@ -206,7 +222,29 @@ function App() {
             <h2 className="text-2xl font-semibold">Receipt Details</h2>
             <p className="text-sm text-muted-foreground">Review extracted items and taxes</p>
           </div>
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors text-muted-foreground"
+          >
+            {showDebug ? '🔍 Hide' : '🔍 Debug'}
+          </button>
         </div>
+
+        {showDebug && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-xs font-mono overflow-auto max-h-48">
+            <pre>{JSON.stringify({
+              subtotal_items: receipt.subtotal_items,
+              total_tax_reported: receipt.total_tax_reported,
+              total_tax_calculated: receipt.total_tax_calculated,
+              total_fees: receipt.total_fees,
+              total_discount: receipt.total_discount,
+              grand_total: receipt.grand_total,
+              line_items_count: receipt.line_items?.length,
+              fees_count: receipt.fees?.length,
+              discounts_count: receipt.discounts?.length,
+            }, null, 2)}</pre>
+          </div>
+        )}
 
         <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
