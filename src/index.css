@@ -32,4 +32,21 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+
+  /* Hide number input spinners */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Center checkboxes vertically */
+  input[type="checkbox"] {
+    vertical-align: middle;
+    margin: 0 auto;
+    display: block;
+  }
 }

@@ -54,6 +54,59 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<ExtractResponse['receipt'] | null>(null)
   const [showDebug, setShowDebug] = useState(false)
+  const [editedItems, setEditedItems] = useState<Record<string, { quantity: number; price: number; taxable: boolean }>>({})
+  const [editedFees, setEditedFees] = useState<Record<string, { quantity: number; price: number; taxable: boolean }>>({})
+  const [editedDiscount, setEditedDiscount] = useState<{ quantity: number; price: number; taxable: boolean } | null>(null)
+
+  const updateItemEdit = (itemId: string, field: 'quantity' | 'price' | 'taxable', value: number | boolean) => {
+    setEditedItems(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value
+      }
+    }))
+  }
+
+  const updateFeeEdit = (feeId: string, field: 'quantity' | 'price' | 'taxable', value: number | boolean) => {
+    setEditedFees(prev => ({
+      ...prev,
+      [feeId]: {
+        ...prev[feeId],
+        [field]: value
+      }
+    }))
+  }
+
+  const updateDiscountEdit = (field: 'quantity' | 'price' | 'taxable', value: number | boolean) => {
+    setEditedDiscount(prev => ({
+      ...prev,
+      [field]: value
+    } as any))
+  }
+
+  const getItemValue = (item: ExtractResponse['receipt']['line_items'][0], field: 'quantity' | 'price' | 'taxable') => {
+    const edited = editedItems[item.item_id]
+    if (field === 'quantity') return edited?.quantity ?? item.quantity
+    if (field === 'price') return edited?.price ?? item.line_subtotal
+    if (field === 'taxable') return edited?.taxable ?? item.taxable === 'TAXABLE'
+    return null
+  }
+
+  const getFeeValue = (feeId: string, field: 'quantity' | 'price' | 'taxable', defaultPrice: number, defaultTaxable: boolean) => {
+    const edited = editedFees[feeId]
+    if (field === 'quantity') return edited?.quantity ?? 0
+    if (field === 'price') return edited?.price ?? defaultPrice
+    if (field === 'taxable') return edited?.taxable ?? defaultTaxable
+    return null
+  }
+
+  const getDiscountValue = (field: 'quantity' | 'price' | 'taxable', defaultPrice: number) => {
+    if (field === 'quantity') return editedDiscount?.quantity ?? 0
+    if (field === 'price') return editedDiscount?.price ?? defaultPrice
+    if (field === 'taxable') return editedDiscount?.taxable ?? false
+    return null
+  }
 
   const handleItemsFiles = (files: File[]) => {
     setItemsFiles(prev => [...prev, ...files])
@@ -84,7 +137,7 @@ function App() {
     formData.append('charges_image', chargesFiles[0])
 
     try {
-      const resp = await fetch('http://127.0.0.1:8000/extract-receipt-multipart-nemotron', {
+      const resp = await fetch('http://127.0.0.1:8000/extract_receipt/extract-receipt-multipart-gemini', {
         method: 'POST',
         body: formData,
       })
@@ -194,6 +247,47 @@ function App() {
     const discountsTotal = receipt.total_discount ?? receipt.discounts?.reduce((sum, disc) => sum + (disc.amount ?? 0), 0) ?? 0
     const taxTotal = receipt.total_tax_reported ?? receipt.total_tax_calculated ?? 0
     const grandTotal = receipt.grand_total ?? itemsSubtotal + feesTotal + taxTotal - discountsTotal
+    
+    // Extract individual fees
+    const serviceFee = receipt.fees?.find(f => f.type === 'SERVICE') ?? null
+    const bagFee = receipt.fees?.find(f => f.type === 'BAG') ?? null
+    const discount = receipt.discounts?.[0] ?? null
+
+    // Calculate totals based on edited values
+    const calculatedItemsSubtotal = items.reduce((sum, item) => {
+      const price = getItemValue(item, 'price') as number
+      return sum + price
+    }, 0)
+
+    const calculatedItemsTax = items.reduce((sum, item) => {
+      const price = getItemValue(item, 'price') as number
+      const isTaxable = getItemValue(item, 'taxable') as boolean
+      return sum + (isTaxable ? price * 0.13 : 0)
+    }, 0)
+
+    const calculatedBagFeePrice = getFeeValue(bagFee?.fee_id || 'bag', 'price', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as number
+    const calculatedBagFeeTaxable = getFeeValue(bagFee?.fee_id || 'bag', 'taxable', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as boolean
+    const calculatedBagFeeTax = calculatedBagFeeTaxable ? calculatedBagFeePrice * 0.13 : 0
+
+    const calculatedServiceFeePrice = getFeeValue(serviceFee?.fee_id || 'service', 'price', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as number
+    const calculatedServiceFeeTaxable = getFeeValue(serviceFee?.fee_id || 'service', 'taxable', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as boolean
+    const calculatedServiceFeeTax = calculatedServiceFeeTaxable ? calculatedServiceFeePrice * 0.13 : 0
+
+    const calculatedDiscountPrice = getDiscountValue('price', discount?.amount ?? 0) as number
+    const calculatedDiscountTaxable = getDiscountValue('taxable', discount?.amount ?? 0) as boolean
+    const calculatedDiscountTax = calculatedDiscountTaxable ? calculatedDiscountPrice * 0.13 : 0
+
+    const calculatedGrandTotal = calculatedItemsSubtotal + calculatedItemsTax + 
+                                 calculatedBagFeePrice + calculatedBagFeeTax + 
+                                 calculatedServiceFeePrice + calculatedServiceFeeTax - 
+                                 calculatedDiscountPrice - calculatedDiscountTax
+
+    // Comparison with tolerance of 0.02 for rounding
+    const tolerance = 0.02
+    const itemsSubtotalMatch = Math.abs(calculatedItemsSubtotal - itemsSubtotal) < tolerance
+    const itemsTaxMatch = Math.abs(calculatedItemsTax - taxTotal) < tolerance
+    const itemsTotalMatch = Math.abs((calculatedItemsSubtotal + calculatedItemsTax) - (itemsSubtotal + taxTotal)) < tolerance
+    const grandTotalMatch = Math.abs(calculatedGrandTotal - grandTotal) < tolerance
 
     console.log('💰 Calculated totals:')
     console.log('   itemsSubtotal:', itemsSubtotal)
@@ -249,7 +343,7 @@ function App() {
         <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-muted/50">
+              <thead className="bg-black text-white">
                 <tr>
                   <th className="px-3 py-3 text-left font-semibold">Item Name</th>
                   <th className="px-3 py-3 text-left font-semibold">Qty</th>
@@ -261,36 +355,169 @@ function App() {
               </thead>
               <tbody>
                 {items.map((item, idx) => {
-                  const hst = item.taxable === 'TAXABLE'
-                  const hstAmount = item.tax_amount ?? 0
-                  const price = item.line_subtotal ?? item.unit_price ?? 0
+                  const quantity = getItemValue(item, 'quantity') as number
+                  const price = getItemValue(item, 'price') as number
+                  const isTaxable = getItemValue(item, 'taxable') as boolean
+                  const hstAmount = isTaxable ? (price * 0.13) : 0
                   const total = price + hstAmount
                   return (
                     <tr key={idx} className="border-t">
-                      <td className="px-3 py-2 align-top">{item.name_normalized || item.name_raw}</td>
-                      <td className="px-3 py-2 align-top">{item.quantity}</td>
-                      <td className="px-3 py-2 align-top">${price.toFixed(2)}</td>
-                      <td className="px-3 py-2 align-top">{hst ? 'TRUE' : 'FALSE'}</td>
-                      <td className="px-3 py-2 align-top">{hst ? `$${hstAmount.toFixed(2)}` : ''}</td>
-                      <td className="px-3 py-2 align-top">${total.toFixed(3)}</td>
+                      <td className="px-3 py-2 align-center">{item.name_normalized || item.name_raw}</td>
+                      <td className="px-3 py-2 align-center">
+                        <input
+                          type="number"
+                          value={quantity}
+                          onChange={(e) => updateItemEdit(item.item_id, 'quantity', parseFloat(e.target.value) || 0)}
+                          className="w-12 px-2 py-1 border rounded"
+                          step="0.01"
+                          min="0"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-center">
+                        <input
+                          type="number"
+                          value={price.toFixed(2)}
+                          onChange={(e) => updateItemEdit(item.item_id, 'price', parseFloat(e.target.value) || 0)}
+                          className="w-20 px-2 py-1 border rounded"
+                          step="0.01"
+                          min="0"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-center">
+                        <input
+                          type="checkbox"
+                          checked={isTaxable}
+                          onChange={(e) => updateItemEdit(item.item_id, 'taxable', e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-center">{isTaxable ? `$${hstAmount.toFixed(2)}` : ''}</td>
+                      <td className="px-3 py-2 align-center">${total.toFixed(2)}</td>
                     </tr>
                   )
                 })}
-                {/* Summary section separator */}
-                <tr className="border-t-2 border-primary/20 bg-muted/30 font-semibold">
-                  <td colSpan={6} className="px-3 py-2 text-foreground/70">Summary</td>
+                {/* Items Subtotal row */}
+                <tr className="bg-black text-white font-semibold border-t-2">
+                  <td className="px-3 py-2">Items Subtotal</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2" style={{ color: itemsSubtotalMatch ? '#22c55e' : '#ef4444' }} title={!itemsSubtotalMatch ? `Detected: $${itemsSubtotal.toFixed(2)}` : undefined}>
+                    ${calculatedItemsSubtotal.toFixed(2)}
+                  </td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2" >
+                    ${calculatedItemsTax.toFixed(2)}
+                  </td>
+                  <td className="px-3 py-2">
+                    ${(calculatedItemsSubtotal + calculatedItemsTax).toFixed(2)}
+                  </td>
                 </tr>
-                {/* Summary rows */}
-                {summaryRows.map((row, idx) => (
-                  <tr key={`summary-${idx}`} className={`border-t ${idx === summaryRows.length - 1 ? 'bg-primary/5 font-semibold' : 'bg-muted/20'}`}>
-                    <td className="px-3 py-2">{row.label}</td>
-                    <td className="px-3 py-2"></td>
-                    <td className="px-3 py-2"></td>
-                    <td className="px-3 py-2">{row.hstAmount !== undefined ? (row.hstAmount > 0 ? 'TRUE' : 'FALSE') : ''}</td>
-                    <td className="px-3 py-2">{row.hstAmount !== undefined ? `$${row.hstAmount.toFixed(4)}` : ''}</td>
-                    <td className="px-3 py-2">{row.amount !== undefined ? `$${row.amount.toFixed(3)}` : ''}</td>
-                  </tr>
-                ))}
+                {/* Checkout Bag Fee row */}
+                <tr className="border-t bg-muted/20">
+                  <td className="px-3 py-2">Checkout Bag Fee</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      value={(getFeeValue(bagFee?.fee_id || 'bag', 'price', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as number).toFixed(2)}
+                      onChange={(e) => updateFeeEdit(bagFee?.fee_id || 'bag', 'price', parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border rounded"
+                      step="0.01"
+                      min="0"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={getFeeValue(bagFee?.fee_id || 'bag', 'taxable', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as boolean}
+                      onChange={(e) => updateFeeEdit(bagFee?.fee_id || 'bag', 'taxable', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    {(getFeeValue(bagFee?.fee_id || 'bag', 'taxable', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as boolean) ? `$${((getFeeValue(bagFee?.fee_id || 'bag', 'price', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as number) * 0.13).toFixed(2)}` : ''}
+                  </td>
+                  <td className="px-3 py-2">
+                    ${((getFeeValue(bagFee?.fee_id || 'bag', 'price', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as number) + ((getFeeValue(bagFee?.fee_id || 'bag', 'taxable', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as boolean) ? ((getFeeValue(bagFee?.fee_id || 'bag', 'price', bagFee?.amount ?? 0, bagFee?.taxable === 'TAXABLE') as number) * 0.13) : 0)).toFixed(2)}
+                  </td>
+                </tr>
+                {/* Service Fee row */}
+                <tr className="border-t bg-muted/20">
+                  <td className="px-3 py-2">Service Fee</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      value={(getFeeValue(serviceFee?.fee_id || 'service', 'price', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as number).toFixed(2)}
+                      onChange={(e) => updateFeeEdit(serviceFee?.fee_id || 'service', 'price', parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border rounded"
+                      step="0.01"
+                      min="0"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={getFeeValue(serviceFee?.fee_id || 'service', 'taxable', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as boolean}
+                      onChange={(e) => updateFeeEdit(serviceFee?.fee_id || 'service', 'taxable', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    {(getFeeValue(serviceFee?.fee_id || 'service', 'taxable', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as boolean) ? `$${((getFeeValue(serviceFee?.fee_id || 'service', 'price', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as number) * 0.13).toFixed(2)}` : ''}
+                  </td>
+                  <td className="px-3 py-2">
+                    ${((getFeeValue(serviceFee?.fee_id || 'service', 'price', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as number) + ((getFeeValue(serviceFee?.fee_id || 'service', 'taxable', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as boolean) ? ((getFeeValue(serviceFee?.fee_id || 'service', 'price', serviceFee?.amount ?? 0, serviceFee?.taxable === 'TAXABLE') as number) * 0.13) : 0)).toFixed(2)}
+                  </td>
+                </tr>
+                {/* Discount row */}
+                <tr className="border-t bg-muted/20">
+                  <td className="px-3 py-2">Discount(if any)</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      value={(getDiscountValue('price', discount?.amount ?? 0) as number).toFixed(2)}
+                      onChange={(e) => updateDiscountEdit('price', parseFloat(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border rounded"
+                      step="0.01"
+                      min="0"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={getDiscountValue('taxable', discount?.amount ?? 0) as boolean}
+                      onChange={(e) => updateDiscountEdit('taxable', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    {(getDiscountValue('taxable', discount?.amount ?? 0) as boolean) ? `$${((getDiscountValue('price', discount?.amount ?? 0) as number) * 0.13).toFixed(2)}` : ''}
+                  </td>
+                  <td className="px-3 py-2">
+                    -${((getDiscountValue('price', discount?.amount ?? 0) as number) + ((getDiscountValue('taxable', discount?.amount ?? 0) as boolean) ? ((getDiscountValue('price', discount?.amount ?? 0) as number) * 0.13) : 0)).toFixed(2)}
+                  </td>
+                </tr>
+                {/* Price Adjustments row */}
+                <tr className="border-t bg-muted/20">
+                  <td className="px-3 py-2">Price Adjustments(if any)</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                </tr>
+                {/* Total row */}
+                <tr className="bg-black text-white font-semibold border-t-2">
+                  <td className="px-3 py-2">Total</td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2"></td>
+                  <td className="px-3 py-2" style={{ color: grandTotalMatch ? '#22c55e' : '#ef4444' }} title={!grandTotalMatch ? `Detected: $${grandTotal.toFixed(2)}` : undefined}>
+                    ${calculatedGrandTotal.toFixed(2)}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
