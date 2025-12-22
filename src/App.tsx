@@ -9,7 +9,7 @@ type Person = {
   name: string
 }
 
-type Taxable = 'TAXABLE' | 'NON_TAXABLE' | 'UNKNOWN'
+//
 
 type ExtractResponse = {
   success: boolean
@@ -190,11 +190,13 @@ function App() {
 
   const canProcess = itemsFiles.length > 0 && chargesFiles.length > 0
 
-  const handleProcess = async () => {
+  const handleProcess = async (preserveReceipt: boolean = false) => {
     if (!canProcess) return
     setLoading(true)
     setError(null)
-    setReceipt(null)
+    if (!preserveReceipt) {
+      setReceipt(null)
+    }
 
     const formData = new FormData()
     itemsFiles.forEach(file => formData.append('items_images', file))
@@ -223,9 +225,6 @@ function App() {
       console.log('📦 Raw receipt from backend:', data.receipt)
       console.log('   subtotal_items:', data.receipt.subtotal_items)
       console.log('   total_tax_reported:', data.receipt.total_tax_reported)
-      console.log('   total_tax_calculated:', data.receipt.total_tax_calculated)
-      console.log('   total_fees:', data.receipt.total_fees)
-      console.log('   total_discount:', data.receipt.total_discount)
       console.log('   grand_total:', data.receipt.grand_total)
 
       setReceipt(data.receipt)
@@ -277,7 +276,7 @@ function App() {
       {canProcess && (
         <div className="mt-6 flex justify-center">
           <button
-            onClick={handleProcess}
+            onClick={() => handleProcess()}
             disabled={loading}
             className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
@@ -354,8 +353,6 @@ function App() {
     // Comparison with tolerance of 0.02 for rounding
     const tolerance = 0.02
     const itemsSubtotalMatch = Math.abs(calculatedItemsSubtotal - itemsSubtotal) < tolerance
-    const itemsTaxMatch = Math.abs(calculatedItemsTax - taxTotal) < tolerance
-    const itemsTotalMatch = Math.abs((calculatedItemsSubtotal + calculatedItemsTax) - (itemsSubtotal + taxTotal)) < tolerance
     const grandTotalMatch = Math.abs(calculatedGrandTotal - grandTotal) < tolerance
 
     console.log('💰 Calculated totals:')
@@ -365,12 +362,7 @@ function App() {
     console.log('   taxTotal:', taxTotal)
     console.log('   grandTotal:', grandTotal)
 
-    const summaryRows = [
-      { label: 'Items Subtotal', amount: itemsSubtotal, hstAmount: taxTotal },
-      { label: 'Fees', amount: feesTotal, hstAmount: 0 },
-      { label: 'Discounts', amount: -discountsTotal, hstAmount: 0 },
-      { label: 'Total', amount: grandTotal, hstAmount: taxTotal },
-    ]
+    //
 
     return (
       <div className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
@@ -393,6 +385,14 @@ function App() {
               {showDebug ? '🔍 Hide' : '🔍 Debug'}
             </button>
             <button
+              onClick={() => handleProcess(true)}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors text-muted-foreground disabled:opacity-60"
+              title="Retry receipt extraction"
+            >
+              {loading ? 'Retrying…' : 'Retry'}
+            </button>
+            <button
               onClick={() => setStage('split')}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
@@ -401,14 +401,17 @@ function App() {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
         {showDebug && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-xs font-mono overflow-auto max-h-48">
             <pre>{JSON.stringify({
               subtotal_items: receipt.subtotal_items,
               total_tax_reported: receipt.total_tax_reported,
-              total_tax_calculated: receipt.total_tax_calculated,
-              total_fees: receipt.total_fees,
-              total_discount: receipt.total_discount,
               grand_total: receipt.grand_total,
               line_items_count: receipt.line_items?.length,
               fees_count: receipt.fees?.length,
