@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import FileDropzone from './components/FileDropzone'
 import './index.css'
 
@@ -27,14 +27,20 @@ type ExtractResponse = {
       quantity: number
       unit_price: number
       line_subtotal: number
+      taxable?: boolean
+      tax_amount?: number
     }>
     fees: Array<{
       type: string
       amount: number
+      taxable?: boolean
+      tax_amount?: number
     }>
     discounts: Array<{
       description: string
       amount: number
+      taxable?: boolean
+      tax_amount?: number
     }>
     subtotal_items: number
     total_tax_reported: number | null
@@ -43,6 +49,16 @@ type ExtractResponse = {
     filename: string
   }
   errors: string[]
+}
+
+interface SavedReceipt {
+  id: string
+  filenames: string[]
+  upload_timestamp: string
+  status: string
+  vendor?: string
+  grand_total?: number
+  extracted_at?: string
 }
 
 function App() {
@@ -61,6 +77,109 @@ function App() {
   const [itemAssignments, setItemAssignments] = useState<Record<string, Set<string>>>({})
   const [unequalSplits, setUnequalSplits] = useState<Record<string, Record<string, number>>>({})
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
+  const [receiptsList, setReceiptsList] = useState<SavedReceipt[]>([])
+  const [currentMongoId, setCurrentMongoId] = useState<string | null>(null)
+  const [showSidebar, setShowSidebar] = useState<boolean>(true)
+
+  const API_BASE = 'http://localhost:8000'
+
+  const loadReceiptsList = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/receipts_db/list`)
+      if (!response.ok) throw new Error('Failed to fetch receipts')
+      const receipts = await response.json()
+      setReceiptsList(receipts)
+      console.log('✅ Loaded receipts:', receipts.length)
+    } catch (error) {
+      console.error('❌ Failed to load receipts:', error)
+    }
+  }
+
+  const createReceiptEntry = async (filenames: string[]): Promise<string | null> => {
+    try {
+      const response = await fetch(`${API_BASE}/receipts_db/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filenames,
+          upload_timestamp: new Date().toISOString()
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to create receipt')
+      
+      const { receipt_id } = await response.json()
+      console.log('✅ Created receipt:', receipt_id)
+      return receipt_id
+    } catch (error) {
+      console.error('❌ Failed to create receipt:', error)
+      return null
+    }
+  }
+
+  const updateReceiptData = async (mongoId: string, receiptData: any) => {
+    try {
+      const response = await fetch(`${API_BASE}/receipts_db/${mongoId}/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receipt_data: receiptData })
+      })
+      
+      if (!response.ok) throw new Error('Failed to update receipt')
+      
+      console.log('✅ Updated receipt:', mongoId)
+      await loadReceiptsList()
+    } catch (error) {
+      console.error('❌ Failed to update receipt:', error)
+    }
+  }
+
+  const loadReceiptById = async (mongoId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/receipts_db/${mongoId}`)
+      if (!response.ok) throw new Error('Receipt not found')
+      
+      const { receipt } = await response.json()
+      console.log('✅ Loaded receipt:', mongoId)
+      return receipt
+    } catch (error) {
+      console.error('❌ Failed to load receipt:', error)
+      return null
+    }
+  }
+
+  const deleteReceiptById = async (mongoId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/receipts_db/${mongoId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) throw new Error('Failed to delete receipt')
+      
+      console.log('✅ Deleted receipt:', mongoId)
+      await loadReceiptsList()
+      if (currentMongoId === mongoId) {
+        setCurrentMongoId(null)
+        setReceipt(null)
+        setStage('upload')
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete receipt:', error)
+    }
+  }
+
+  const handleSelectReceipt = async (mongoId: string) => {
+    const receiptDoc = await loadReceiptById(mongoId)
+    
+    if (receiptDoc && receiptDoc.receipt_data) {
+      setReceipt(receiptDoc.receipt_data)
+      setCurrentMongoId(mongoId)
+      setStage('review')
+    } else {
+      setCurrentMongoId(mongoId)
+      setStage('upload')
+    }
+  }
 
   const updateItemEdit = (itemId: string, field: 'quantity' | 'price' | 'taxable', value: number | boolean) => {
     setEditedItems(prev => ({
@@ -93,7 +212,13 @@ function App() {
     const edited = editedItems[item.name_raw]
     if (field === 'quantity') return edited?.quantity ?? item.quantity ?? 0
     if (field === 'price') return edited?.price ?? item.line_subtotal ?? 0
-    if (field === 'taxable') return edited?.taxable ?? false
+    if (field === 'taxable') {
+      const isTaxable = edited?.taxable ?? false
+      if (isTaxable !== false) {
+        console.debug(`getItemValue("${item.name_raw}", "taxable") => ${isTaxable}`)
+      }
+      return isTaxable
+    }
     return null
   }
 
@@ -172,12 +297,34 @@ function App() {
     return total
   }
 
-  const handleItemsFiles = (files: File[]) => {
+  useEffect(() => {
+    loadReceiptsList()
+  }, [])
+
+  const handleItemsFiles = async (files: File[]) => {
     setItemsFiles(prev => [...prev, ...files])
+    
+    // Create DB entry when first files are uploaded
+    if (itemsFiles.length === 0 && chargesFiles.length === 0 && !currentMongoId) {
+      const allFilenames = files.map(f => f.name)
+      const mongoId = await createReceiptEntry(allFilenames)
+      if (mongoId) {
+        setCurrentMongoId(mongoId)
+      }
+    }
   }
 
-  const handleChargesFiles = (files: File[]) => {
+  const handleChargesFiles = async (files: File[]) => {
     setChargesFiles(files.slice(0, 1)) // Only keep first file
+    
+    // Create DB entry when first files are uploaded
+    if (itemsFiles.length === 0 && chargesFiles.length === 0 && !currentMongoId) {
+      const allFilenames = files.map(f => f.name)
+      const mongoId = await createReceiptEntry(allFilenames)
+      if (mongoId) {
+        setCurrentMongoId(mongoId)
+      }
+    }
   }
 
   const removeItemsFile = (index: number) => {
@@ -189,6 +336,138 @@ function App() {
   }
 
   const canProcess = itemsFiles.length > 0 && chargesFiles.length > 0
+
+  const handleClassifyTaxability = async () => {
+    if (!receipt || !receipt.line_items || receipt.line_items.length === 0) {
+      setError('No items to classify')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const itemsToClassify = receipt.line_items.map(item => ({
+        name_raw: item.name_raw
+      }))
+
+      console.log('📤 Sending to classify-taxability:', itemsToClassify)
+
+      const response = await fetch(`${API_BASE}/extract_receipt/classify-taxability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToClassify })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to classify taxability')
+      }
+
+      const data = await response.json()
+      
+      console.log('📥 API Response:', data)
+      
+      if (!data.success || !data.items) {
+        throw new Error('Invalid classification response')
+      }
+
+      console.log('✅ Classified items:', data.items)
+
+      // Update editedItems state with taxability results
+      const newEditedItems = { ...editedItems }
+      console.log('📝 Current editedItems before update:', editedItems)
+      
+      data.items.forEach((classifiedItem: { name_raw: string; taxable: boolean }) => {
+        console.log(`  → Setting ${classifiedItem.name_raw} to taxable: ${classifiedItem.taxable}`)
+        if (!newEditedItems[classifiedItem.name_raw]) {
+          const originalItem = receipt.line_items.find(item => item.name_raw === classifiedItem.name_raw)
+          newEditedItems[classifiedItem.name_raw] = {
+            quantity: originalItem?.quantity ?? 0,
+            price: originalItem?.line_subtotal ?? 0,
+            taxable: classifiedItem.taxable
+          }
+          console.log(`     (Created new entry)`)
+        } else {
+          newEditedItems[classifiedItem.name_raw].taxable = classifiedItem.taxable
+          console.log(`     (Updated existing entry)`)
+        }
+      })
+      
+      console.log('📝 newEditedItems after update:', newEditedItems)
+      setEditedItems(newEditedItems)
+      console.log('✅ State updated with setEditedItems')
+      console.log('✅ Taxability classification complete (UI only - will save to DB when clicking Split)')
+    } catch (err) {
+      console.error('❌ Classification error:', err)
+      setError(err instanceof Error ? err.message : 'Classification failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoToSplit = async () => {
+    if (!receipt) return
+
+    setLoading(true)
+    try {
+      const discount = receipt.discounts?.[0] ?? null
+      const updatedDiscountAmount = getDiscountValue('price', discount?.amount ?? 0) as number
+      const updatedDiscountTaxable = getDiscountValue('taxable', discount?.amount ?? 0) as boolean
+      const updatedDiscountTax = updatedDiscountTaxable ? updatedDiscountAmount * 0.13 : 0
+      const updatedDiscounts = discount
+        ? [{
+            ...discount,
+            amount: updatedDiscountAmount,
+            taxable: updatedDiscountTaxable,
+            tax_amount: updatedDiscountTax
+          }]
+        : (updatedDiscountAmount !== 0 || updatedDiscountTaxable)
+          ? [{
+              description: 'Discount',
+              amount: updatedDiscountAmount,
+              taxable: updatedDiscountTaxable,
+              tax_amount: updatedDiscountTax
+            }]
+          : []
+
+      // Build updated receipt with all current edits (qty, price, taxability, discounts)
+      const updatedReceipt = {
+        ...receipt,
+        line_items: receipt.line_items.map(item => {
+          const price = getItemValue(item, 'price') as number
+          const taxable = getItemValue(item, 'taxable') as boolean
+          const taxAmount = taxable ? price * 0.13 : 0
+          return {
+            ...item,
+            quantity: getItemValue(item, 'quantity') as number,
+            line_subtotal: price,
+            taxable: taxable,
+            tax_amount: taxAmount
+          }
+        }),
+        discounts: updatedDiscounts
+      }
+
+      console.log('💾 Saving to MongoDB with all edits (qty, price, taxability, discounts)...')
+      console.log('🧾 Discount payload:', updatedDiscounts)
+      console.log('📦 Receipt to save:', updatedReceipt)
+
+      // Update MongoDB with latest edits (including taxability)
+      if (currentMongoId) {
+        await updateReceiptData(currentMongoId, updatedReceipt)
+        console.log('✅ MongoDB updated with all edits')
+      }
+
+      setReceipt(updatedReceipt)
+      setStage('split')
+      console.log('✅ Receipt saved and navigated to split screen')
+    } catch (err) {
+      console.error('❌ Error saving receipt:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save receipt')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleProcess = async (preserveReceipt: boolean = false) => {
     if (!canProcess) return
@@ -228,6 +507,12 @@ function App() {
       console.log('   grand_total:', data.receipt.grand_total)
 
       setReceipt(data.receipt)
+      
+      // Update MongoDB with extraction result
+      if (currentMongoId) {
+        await updateReceiptData(currentMongoId, data.receipt)
+      }
+      
       setStage('review')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Extraction failed')
@@ -235,6 +520,81 @@ function App() {
       setLoading(false)
     }
   }
+
+  const renderSidebar = () => (
+    <div className="w-80 h-screen border-r-2 bg-muted/20 p-5 overflow-y-auto shadow-lg">
+      <div className="flex justify-between items-center mb-5">
+        <h2 className="text-2xl font-bold">Receipts</h2>
+        <button
+          onClick={() => setShowSidebar(false)}
+          className="text-2xl hover:opacity-70 transition-opacity"
+        >
+          ✕
+        </button>
+      </div>
+      
+      {receiptsList.length === 0 ? (
+        <p className="text-muted-foreground text-center mt-10">
+          No receipts yet
+        </p>
+      ) : (
+        receiptsList.map(receipt => (
+          <div
+            key={receipt.id}
+            onClick={() => handleSelectReceipt(receipt.id)}
+            className={`p-4 my-3 rounded-lg cursor-pointer transition-all ${
+              currentMongoId === receipt.id 
+                ? 'border-2 border-primary shadow-md' 
+                : 'border border-border'
+            } ${
+              receipt.status === 'EXTRACTED' ? 'bg-green-50' :
+              receipt.status === 'NEEDS_REVIEW' ? 'bg-orange-50' : 'bg-card'
+            } hover:-translate-y-0.5 hover:shadow-lg`}
+          >
+            <div className="font-bold text-lg mb-2">
+              {receipt.vendor || 'Unknown Vendor'}
+            </div>
+            
+            <div className="text-sm text-muted-foreground mb-2">
+              📅 {new Date(receipt.upload_timestamp).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+            
+            <div className="text-base font-bold text-green-700 mb-2">
+              💰 ${receipt.grand_total?.toFixed(2) || '—'}
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className={`text-xs font-semibold uppercase px-2 py-1 rounded ${
+                receipt.status === 'EXTRACTED' ? 'bg-green-500 text-white' :
+                receipt.status === 'NEEDS_REVIEW' ? 'bg-orange-500 text-white' :
+                receipt.status === 'FINALIZED' ? 'bg-blue-500 text-white' : 'bg-gray-500 text-white'
+              }`}>
+                {receipt.status}
+              </span>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (confirm('Delete this receipt?')) {
+                    deleteReceiptById(receipt.id)
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground px-2 py-1 rounded text-xs hover:bg-destructive/90 transition-colors"
+              >
+                🗑️ Delete
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
 
   const renderUpload = () => (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -393,10 +753,19 @@ function App() {
               {loading ? 'Retrying…' : 'Retry'}
             </button>
             <button
-              onClick={() => setStage('split')}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              onClick={handleClassifyTaxability}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-xs font-medium hover:bg-green-100 transition-colors text-green-700 disabled:opacity-60"
+              title="Auto-classify items as taxable or non-taxable"
             >
-              Split →
+              {loading ? 'Classifying…' : '🤖 Guess Taxability'}
+            </button>
+            <button
+              onClick={handleGoToSplit}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              {loading ? 'Saving…' : 'Split →'}
             </button>
           </div>
         </div>
@@ -826,8 +1195,21 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
-      {stage === 'upload' ? renderUpload() : stage === 'review' ? renderReview() : renderSplit()}
+    <div className="flex min-h-screen">
+      {showSidebar && renderSidebar()}
+      
+      {!showSidebar && (
+        <button
+          onClick={() => setShowSidebar(true)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground px-2 py-3 rounded-r-lg z-50 hover:bg-primary/90 transition-colors"
+        >
+          ☰
+        </button>
+      )}
+      
+      <div className="flex-1 bg-gradient-to-br from-background to-muted/20 overflow-y-auto">
+        {stage === 'upload' ? renderUpload() : stage === 'review' ? renderReview() : renderSplit()}
+      </div>
     </div>
   )
 }
