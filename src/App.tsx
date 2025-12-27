@@ -483,7 +483,7 @@ function App() {
     formData.append('charges_image', chargesFiles[0])
 
     try {
-      const resp = await fetch('http://127.0.0.1:8000/extract_receipt/extract-receipt', {
+      const resp = await fetch(`${API_BASE}/extract_receipt/extract-receipt`, {
         method: 'POST',
         body: formData,
       })
