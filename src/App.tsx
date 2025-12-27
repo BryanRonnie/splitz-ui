@@ -81,7 +81,8 @@ function App() {
   const [currentMongoId, setCurrentMongoId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState<boolean>(true)
 
-  const API_BASE = 'http://localhost:8000'
+  // const API_BASE = 'http://localhost:8000'
+  const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com/';
 
   const loadReceiptsList = async () => {
     try {
