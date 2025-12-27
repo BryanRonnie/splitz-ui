@@ -30,7 +30,8 @@ const [showSidebar, setShowSidebar] = useState<boolean>(true);
 // 3. ADD THESE API FUNCTIONS
 // ============================================================================
 
-const API_BASE = 'http://localhost:8000';
+// const API_BASE = 'http://localhost:8000';
+const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com/';
 
 async function loadReceiptsList() {
   try {
