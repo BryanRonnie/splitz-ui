@@ -175,9 +175,72 @@ function App() {
     const receiptDoc = await loadReceiptById(mongoId)
     
     if (receiptDoc && receiptDoc.receipt_data) {
-      setReceipt(receiptDoc.receipt_data)
+      const receiptData = receiptDoc.receipt_data
+      setReceipt(receiptData)
       setCurrentMongoId(mongoId)
-      setStage('review')
+      
+      // Check if receipt has finalized split results
+      if (receiptData.split_results) {
+        console.log('✅ Loading finalized split results')
+        
+        // Restore split results
+        setSplitResults({
+          success: true,
+          receipt_id: receiptData.receipt_id,
+          split_id: receiptData.split_results.split_id,
+          shares: receiptData.split_results.shares,
+          total_validation: receiptData.split_results.total_validation,
+          errors: []
+        })
+        
+        // Restore people and assignments from the split request
+        if (receiptData.split_results.split_request) {
+          const splitRequest = receiptData.split_results.split_request
+          
+          // Restore people
+          if (splitRequest.people && splitRequest.people.length > 0) {
+            const restoredPeople = splitRequest.people.map((name: string, idx: number) => ({
+              id: `person-${idx + 1}`,
+              name: name
+            }))
+            setPeople(restoredPeople)
+            
+            // Create a mapping from person name to person ID
+            const nameToIdMap: Record<string, string> = {}
+            restoredPeople.forEach(p => {
+              nameToIdMap[p.name] = p.id
+            })
+            
+            // Restore item assignments using the name-to-ID mapping
+            if (splitRequest.item_split_rules) {
+              const newAssignments: Record<string, Set<string>> = {}
+              
+              splitRequest.item_split_rules.forEach((rule: any) => {
+                if (rule.split_type === 'EQUAL' && rule.metadata?.people) {
+                  // Convert person names to person IDs
+                  const personIds = rule.metadata.people
+                    .map((name: string) => nameToIdMap[name])
+                    .filter((id: string | undefined) => id !== undefined)
+                  newAssignments[rule.item_id] = new Set(personIds)
+                } else if (rule.split_type === 'FIXED_AMOUNT' && rule.metadata) {
+                  // Convert person names to person IDs
+                  const personIds = Object.keys(rule.metadata)
+                    .map((name: string) => nameToIdMap[name])
+                    .filter((id: string | undefined) => id !== undefined)
+                  newAssignments[rule.item_id] = new Set(personIds)
+                }
+              })
+              
+              setItemAssignments(newAssignments)
+            }
+          }
+        }
+        
+        // Go directly to split stage
+        setStage('split')
+      } else {
+        setStage('review')
+      }
     } else {
       setCurrentMongoId(mongoId)
       setStage('upload')
@@ -417,7 +480,115 @@ function App() {
     }
   }
 
+  const handleFinalizeSplit = async () => {
+    if (!receipt || !splitResults) return
+    if (people.length === 0) {
+      setError('No split to finalize')
+      return
+    }
+
+    setCalculatingSplit(true)
+    setError(null)
+
+    try {
+      // Build item_split_rules from current assignments (same as in handleCalculateSplit)
+      const itemSplitRules: any[] = []
+      
+      receipt.line_items.forEach(item => {
+        const assignedPeople = people.filter(p => isItemAssignedToPerson(item.name_raw, p.id))
+        
+        if (assignedPeople.length === 0) {
+          return
+        }
+
+        const hasUnequalSplit = assignedPeople.some(p => unequalSplits[item.name_raw]?.[p.id] !== undefined)
+        
+        if (hasUnequalSplit) {
+          const metadata: Record<string, number> = {}
+          assignedPeople.forEach(p => {
+            const customAmount = unequalSplits[item.name_raw]?.[p.id]
+            if (customAmount !== undefined) {
+              metadata[p.name] = customAmount
+            } else {
+              const price = getItemValue(item, 'price') as number
+              const isTaxable = getItemValue(item, 'taxable') as boolean
+              const hstAmount = isTaxable ? (price * 0.13) : 0
+              metadata[p.name] = price + hstAmount
+            }
+          })
+          
+          itemSplitRules.push({
+            item_id: item.name_raw,
+            split_type: 'FIXED_AMOUNT',
+            metadata
+          })
+        } else {
+          itemSplitRules.push({
+            item_id: item.name_raw,
+            split_type: 'EQUAL',
+            metadata: {
+              people: assignedPeople.map(p => p.name)
+            }
+          })
+        }
+      })
+
+      console.log('💾 Finalizing split...')
+
+      const response = await fetch(`${API_BASE}/receipts/${receipt.receipt_id}/finalize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          people: people.map(p => p.name),
+          strategy: 'UNEVEN',
+          item_split_rules: itemSplitRules
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || errorData.errors?.[0] || 'Finalize failed')
+      }
+
+      const data = await response.json()
+      console.log('✅ Split finalized:', data)
+      
+      // Update local receipt to show it's finalized
+      const updatedReceipt = {
+        ...receipt,
+        status: 'FINALIZED',
+        split_results: {
+          split_id: data.split_id,
+          shares: data.shares,
+          total_validation: data.total_validation,
+          finalized_at: new Date().toISOString(),
+          split_request: {
+            people: people.map(p => p.name),
+            strategy: 'UNEVEN',
+            item_split_rules: itemSplitRules
+          }
+        }
+      }
+      
+      setReceipt(updatedReceipt)
+      
+      // Save to MongoDB if we have a mongo ID
+      if (currentMongoId) {
+        await updateReceiptData(currentMongoId, updatedReceipt)
+        console.log('✅ Saved finalized split to MongoDB')
+      }
+      
+      alert('Split finalized successfully! This split will be loaded automatically when you view this receipt.')
+    } catch (err) {
+      console.error('❌ Finalize error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to finalize split')
+    } finally {
+      setCalculatingSplit(false)
+    }
+  }
+
   useEffect(() => {
+
     loadReceiptsList()
   }, [])
 
@@ -1419,6 +1590,17 @@ function App() {
                 </ul>
               </div>
             )}
+
+            {/* Finalize Button */}
+            <div className="flex justify-center">
+              <button
+                onClick={handleFinalizeSplit}
+                disabled={calculatingSplit || !splitResults.total_validation?.is_valid}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-8 py-3 text-sm font-medium text-white shadow hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {calculatingSplit ? '💾 Saving...' : '✅ Finalize Split'}
+              </button>
+            </div>
           </div>
         )}
 
