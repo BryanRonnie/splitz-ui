@@ -1346,23 +1346,33 @@ function App() {
 
                   <div className="border-t pt-3 space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span className="font-medium">${(share.item_total || share.subtotal || 0).toFixed(2)}</span>
+                      <span>Items Subtotal:</span>
+                      <span className="font-medium">${(share.item_total || 0).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Tax:</span>
-                      <span className="font-medium">${(share.tax_total || share.allocated_tax || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Fees:</span>
-                      <span className="font-medium">${(share.fee_total || share.allocated_fees || 0).toFixed(2)}</span>
-                    </div>
+                    
+                    {/* Individual fee breakdowns - show the total which includes fee taxes */}
+                    {share.fees_breakdown && share.fees_breakdown.map((fee: any, idx: number) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>{fee.description}:</span>
+                        <span className="font-medium">${fee.total.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    
+                    {/* Harmonized Sales Tax (item tax only, not fee taxes) */}
+                    {share.item_tax !== undefined && share.item_tax > 0 && (
+                      <div className="flex justify-between">
+                        <span>Harmonized Sales Tax:</span>
+                        <span className="font-medium">${share.item_tax.toFixed(2)}</span>
+                      </div>
+                    )}
+                    
                     {(share.discount_credit || share.allocated_discounts) !== undefined && (share.discount_credit || share.allocated_discounts) !== 0 && (
                       <div className="flex justify-between text-red-600">
-                        <span>Discounts:</span>
+                        <span>Retailer Coupon Discount:</span>
                         <span className="font-medium">-${Math.abs(share.discount_credit || share.allocated_discounts || 0).toFixed(2)}</span>
                       </div>
                     )}
+                    
                     <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2 text-green-700">
                       <span>Total:</span>
                       <span>${share.amount_owed?.toFixed(2) || '0.00'}</span>
