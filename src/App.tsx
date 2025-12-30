@@ -80,9 +80,11 @@ function App() {
   const [receiptsList, setReceiptsList] = useState<SavedReceipt[]>([])
   const [currentMongoId, setCurrentMongoId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState<boolean>(true)
+  const [splitResults, setSplitResults] = useState<any>(null)
+  const [calculatingSplit, setCalculatingSplit] = useState(false)
 
-  // const API_BASE = 'http://localhost:8000'
-  const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com';
+  const API_BASE = 'http://localhost:8000'
+  // const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com';
 
   const loadReceiptsList = async () => {
     try {
@@ -298,6 +300,123 @@ function App() {
     return total
   }
 
+  const handleCalculateSplit = async () => {
+    if (!receipt) return
+    if (people.length === 0) {
+      setError('Please add at least one person to split with')
+      return
+    }
+
+    setCalculatingSplit(true)
+    setError(null)
+    setSplitResults(null)
+
+    try {
+      // Step 1: Make sure we have the latest receipt data from MongoDB
+      let latestReceipt = receipt
+      if (currentMongoId) {
+        console.log('📖 Loading latest receipt from MongoDB...')
+        const mongoReceipt = await loadReceiptById(currentMongoId)
+        if (mongoReceipt && mongoReceipt.receipt_data) {
+          latestReceipt = mongoReceipt.receipt_data
+          console.log('✅ Loaded latest from MongoDB')
+        }
+      }
+
+      // Step 2: Ensure receipt is stored in backend's in-memory store
+      console.log('📦 Ensuring receipt is in backend store...')
+      const storeResp = await fetch(`${API_BASE}/receipts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(latestReceipt)
+      })
+      
+      if (!storeResp.ok) {
+        console.warn('⚠️ Failed to store receipt in backend, attempting split anyway')
+      } else {
+        console.log('✅ Receipt ensured in backend store')
+      }
+
+      // Step 3: Build item_split_rules from current assignments
+      const itemSplitRules: any[] = []
+      
+      receipt.line_items.forEach(item => {
+        const assignedPeople = people.filter(p => isItemAssignedToPerson(item.name_raw, p.id))
+        
+        if (assignedPeople.length === 0) {
+          // Skip unassigned items
+          return
+        }
+
+        // Check if there are unequal splits for this item
+        const hasUnequalSplit = assignedPeople.some(p => unequalSplits[item.name_raw]?.[p.id] !== undefined)
+        
+        if (hasUnequalSplit) {
+          // Use FIXED_AMOUNT split type
+          const metadata: Record<string, number> = {}
+          assignedPeople.forEach(p => {
+            const customAmount = unequalSplits[item.name_raw]?.[p.id]
+            if (customAmount !== undefined) {
+              metadata[p.name] = customAmount
+            } else {
+              // Default to equal split of this person's portion
+              const price = getItemValue(item, 'price') as number
+              const isTaxable = getItemValue(item, 'taxable') as boolean
+              const hstAmount = isTaxable ? (price * 0.13) : 0
+              metadata[p.name] = price + hstAmount
+            }
+          })
+          
+          itemSplitRules.push({
+            item_id: item.name_raw, // Using name_raw as ID
+            split_type: 'FIXED_AMOUNT',
+            metadata
+          })
+        } else {
+          // Use EQUAL split type
+          itemSplitRules.push({
+            item_id: item.name_raw,
+            split_type: 'EQUAL',
+            metadata: {
+              people: assignedPeople.map(p => p.name)
+            }
+          })
+        }
+      })
+
+      console.log('📤 Sending split request:', {
+        receipt_id: latestReceipt.receipt_id,
+        people: people.map(p => p.name),
+        item_split_rules: itemSplitRules
+      })
+
+      const response = await fetch(`${API_BASE}/receipts/${latestReceipt.receipt_id}/split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          people: people.map(p => p.name),
+          strategy: 'UNEVEN', // Will be ignored since we're using item_split_rules
+          item_split_rules: itemSplitRules
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || errorData.errors?.[0] || 'Split calculation failed')
+      }
+
+      const data = await response.json()
+      console.log('✅ Split calculation result:', data)
+      
+      setSplitResults(data)
+    } catch (err) {
+      console.error('❌ Split calculation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to calculate split')
+    } finally {
+      setCalculatingSplit(false)
+    }
+  }
+
   useEffect(() => {
     loadReceiptsList()
   }, [])
@@ -506,6 +625,43 @@ function App() {
       console.log('   subtotal_items:', data.receipt.subtotal_items)
       console.log('   total_tax_reported:', data.receipt.total_tax_reported)
       console.log('   grand_total:', data.receipt.grand_total)
+
+      // Store receipt in backend's in-memory store
+      try {
+        console.log('💾 Storing receipt in backend...')
+        const storeResp = await fetch(`${API_BASE}/receipts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data.receipt)
+        })
+        
+        if (storeResp.ok) {
+          const storeData = await storeResp.json()
+          console.log('✅ Receipt stored in backend:', storeData)
+        } else {
+          console.warn('⚠️ Failed to store receipt in backend')
+        }
+      } catch (storeErr) {
+        console.warn('⚠️ Receipt storage error:', storeErr)
+      }
+
+      // Apply backend tax reconciliation
+      try {
+        console.log('🧮 Applying tax reconciliation...')
+        const taxResp = await fetch(`${API_BASE}/pipeline/reconcile-tax?receipt_id=${data.receipt.receipt_id}`, {
+          method: 'POST'
+        })
+        
+        if (taxResp.ok) {
+          const taxData = await taxResp.json()
+          console.log('✅ Tax reconciliation complete:', taxData)
+          // The backend has updated the receipt in its store, but we need to use the response
+        } else {
+          console.warn('⚠️ Tax reconciliation failed, using original extraction')
+        }
+      } catch (taxErr) {
+        console.warn('⚠️ Tax reconciliation error:', taxErr)
+      }
 
       setReceipt(data.receipt)
       
@@ -1150,47 +1306,156 @@ function App() {
           )}
         </div>
 
-        {/* Person View */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Summary by Person</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {people.map((person) => {
-              const personItems = items.filter(item => isItemAssignedToPerson(item.name_raw, person.id))
-              const total = getPersonItemTotal(person.id)
+        {/* Calculate Split Button */}
+        <div className="flex justify-center">
+          <button
+            onClick={handleCalculateSplit}
+            disabled={calculatingSplit || people.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            {calculatingSplit ? '🧮 Calculating...' : '💰 Calculate Split'}
+          </button>
+        </div>
 
-              return (
-                <div key={person.id} className="bg-card border rounded-xl shadow-sm p-4">
-                  <h4 className="font-semibold mb-3">{person.name}</h4>
-                  {personItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No items assigned</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {personItems.map((item) => {
-                        const price = getItemValue(item, 'price') as number
-                        const isTaxable = getItemValue(item, 'taxable') as boolean
-                        const hstAmount = isTaxable ? (price * 0.13) : 0
-                        const itemTotal = price + hstAmount
-                        const unequalValue = unequalSplits[item.name_raw]?.[person.id]
-                        const displayValue = unequalValue !== undefined ? unequalValue : itemTotal
+        {/* Split Results */}
+        {splitResults && splitResults.success && (
+          <div className="bg-green-50 border-2 border-green-500 rounded-xl shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-green-700">✅ Split Calculation Complete</h3>
+              <div className="text-sm text-muted-foreground">
+                Split ID: {splitResults.split_id}
+              </div>
+            </div>
 
-                        return (
-                          <div key={item.name_raw} className="flex justify-between text-sm">
-                            <span>{item.name_raw}</span>
-                            <span className="font-medium">${displayValue.toFixed(2)}</span>
-                          </div>
-                        )
-                      })}
-                      <div className="border-t pt-2 mt-2 flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span>${total.toFixed(2)}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {splitResults.shares.map((share: any) => (
+                <div key={share.person_id} className="bg-white border-2 border-green-300 rounded-lg shadow-sm p-4">
+                  <h4 className="font-bold text-lg mb-3 text-green-800">{share.person_name}</h4>
+                  
+                  {share.item_breakdown && share.item_breakdown.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase">Items:</div>
+                      {share.item_breakdown.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="truncate mr-2">{item.item_name}</span>
+                          <span className="font-medium whitespace-nowrap">${item.allocated_cost?.toFixed(2) || '0.00'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t pt-3 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-medium">${(share.item_total || share.subtotal || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tax:</span>
+                      <span className="font-medium">${(share.tax_total || share.allocated_tax || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Fees:</span>
+                      <span className="font-medium">${(share.fee_total || share.allocated_fees || 0).toFixed(2)}</span>
+                    </div>
+                    {(share.discount_credit || share.allocated_discounts) !== undefined && (share.discount_credit || share.allocated_discounts) !== 0 && (
+                      <div className="flex justify-between text-red-600">
+                        <span>Discounts:</span>
+                        <span className="font-medium">-${Math.abs(share.discount_credit || share.allocated_discounts || 0).toFixed(2)}</span>
                       </div>
+                    )}
+                    <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2 text-green-700">
+                      <span>Total:</span>
+                      <span>${share.amount_owed?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {splitResults.total_validation && (
+              <div className="bg-white border rounded-lg p-4">
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="font-semibold">Validation:</span>
+                    <span className={splitResults.total_validation.is_valid ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
+                      {splitResults.total_validation.is_valid ? '✅ Valid' : '❌ Invalid'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Receipt Total:</span>
+                    <span className="font-medium">${splitResults.total_validation.receipt_total?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Sum of Shares:</span>
+                    <span className="font-medium">${splitResults.total_validation.split_total?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  {splitResults.total_validation.difference !== undefined && splitResults.total_validation.difference !== 0 && (
+                    <div className="flex justify-between text-orange-600">
+                      <span>Difference:</span>
+                      <span className="font-medium">${Math.abs(splitResults.total_validation.difference).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
-              )
-            })}
+              </div>
+            )}
+
+            {splitResults.errors && splitResults.errors.length > 0 && (
+              <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+                <div className="text-sm font-semibold text-red-700 mb-2">Errors:</div>
+                <ul className="text-sm text-red-600 list-disc list-inside">
+                  {splitResults.errors.map((err: string, idx: number) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Person View (Preview - Before Calculation) */}
+        {!splitResults && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Preview (Client-Side Estimate)</h3>
+            <p className="text-sm text-muted-foreground">Click "Calculate Split" above for accurate backend calculation</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {people.map((person) => {
+                const personItems = items.filter(item => isItemAssignedToPerson(item.name_raw, person.id))
+                const total = getPersonItemTotal(person.id)
+
+                return (
+                  <div key={person.id} className="bg-card border rounded-xl shadow-sm p-4">
+                    <h4 className="font-semibold mb-3">{person.name}</h4>
+                    {personItems.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No items assigned</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {personItems.map((item) => {
+                          const price = getItemValue(item, 'price') as number
+                          const isTaxable = getItemValue(item, 'taxable') as boolean
+                          const hstAmount = isTaxable ? (price * 0.13) : 0
+                          const itemTotal = price + hstAmount
+                          const unequalValue = unequalSplits[item.name_raw]?.[person.id]
+                          const displayValue = unequalValue !== undefined ? unequalValue : itemTotal
+
+                          return (
+                            <div key={item.name_raw} className="flex justify-between text-sm">
+                              <span>{item.name_raw}</span>
+                              <span className="font-medium">${displayValue.toFixed(2)}</span>
+                            </div>
+                          )
+                        })}
+                        <div className="border-t pt-2 mt-2 flex justify-between font-semibold">
+                          <span>Estimated Total:</span>
+                          <span>${total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
