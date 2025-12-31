@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
 import FileDropzone from './components/FileDropzone'
+import { Button } from './components/Button'
+import { Card, CardHeader, CardContent } from './components/Card'
+import { Badge } from './components/Badge'
+import { Alert } from './components/Alert'
+import { Header } from './components/Header'
+import { StepIndicator } from './components/StepIndicator'
+import { Plus, Trash2, Upload, DollarSign, Users } from 'lucide-react'
 import './index.css'
 
 type Stage = 'upload' | 'review' | 'split'
@@ -83,8 +90,8 @@ function App() {
   const [splitResults, setSplitResults] = useState<any>(null)
   const [calculatingSplit, setCalculatingSplit] = useState(false)
 
-  const API_BASE = 'http://localhost:8000'
-  // const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com';
+  // const API_BASE = 'http://localhost:8000'
+  const API_BASE = 'https://splitz-backend-200950802-054e750f9667.herokuapp.com';
 
   const loadReceiptsList = async () => {
     try {
@@ -207,7 +214,7 @@ function App() {
             
             // Create a mapping from person name to person ID
             const nameToIdMap: Record<string, string> = {}
-            restoredPeople.forEach(p => {
+            restoredPeople.forEach((p: Person) => {
               nameToIdMap[p.name] = p.id
             })
             
@@ -925,54 +932,119 @@ function App() {
   )
 
   const renderUpload = () => (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Splitz</h1>
-        <p className="text-muted-foreground">Upload your receipt images to get started</p>
+    <>
+      <Header 
+        title="Splitz" 
+        subtitle="Upload your receipt and we'll help you split it fairly"
+        icon={<DollarSign className="w-8 h-8" />}
+      />
+      
+      <div className="min-h-[calc(100vh-200px)] bg-gradient-to-b from-blue-50 to-white py-12">
+        <div className="container mx-auto px-4 max-w-3xl">
+          <StepIndicator currentStep="upload" />
+          {error && (
+            <Alert variant="error" title="Upload Error" className="mb-8">
+              {error}
+            </Alert>
+          )}
+
+          <div className="space-y-8">
+            {/* Items Upload Card */}
+            <Card className="hover:shadow-lg">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                    <Upload className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Items & Prices</h3>
+                    <p className="text-sm text-gray-600">Upload one or more images showing items and their prices</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <FileDropzone
+                  title="Select Receipt Item Images"
+                  description="PNG, JPG, JPEG, or WebP (you can upload multiple)"
+                  files={itemsFiles}
+                  onFilesAccepted={handleItemsFiles}
+                  onRemoveFile={removeItemsFile}
+                  multiple={true}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Charges Upload Card */}
+            <Card className="hover:shadow-lg">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                    <DollarSign className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Charges & Taxes</h3>
+                    <p className="text-sm text-gray-600">Upload the receipt section showing total charges, taxes, and fees</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <FileDropzone
+                  title="Select Receipt Charges Image"
+                  description="PNG, JPG, JPEG, or WebP (single file)"
+                  files={chargesFiles}
+                  onFilesAccepted={handleChargesFiles}
+                  onRemoveFile={removeChargesFile}
+                  multiple={false}
+                />
+              </CardContent>
+            </Card>
+
+            {/* File Status Cards */}
+            {itemsFiles.length > 0 || chargesFiles.length > 0 ? (
+              <Card variant="highlighted">
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Items Images:</span>
+                      <Badge variant="success">{itemsFiles.length} file(s)</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Charges Image:</span>
+                      <Badge variant={chargesFiles.length > 0 ? "success" : "warning"}>
+                        {chargesFiles.length > 0 ? '1 file' : 'Missing'}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {/* Process Button */}
+            {canProcess ? (
+              <div className="flex gap-4 justify-center pt-6">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  onClick={() => handleProcess()}
+                  isLoading={loading}
+                >
+                  {loading ? 'Processing Receipt...' : 'Process Receipt'}
+                </Button>
+              </div>
+            ) : (
+              <Card variant="subtle">
+                <CardContent>
+                  <p className="text-center text-gray-600">
+                    <span className="font-semibold">📋 Ready to continue?</span><br/>
+                    Upload both receipt images to proceed
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-6">
-        <div className="bg-card rounded-xl border shadow-sm p-6">
-          <FileDropzone
-            title="Items & Prices"
-            description="Upload one or more images showing item names and prices"
-            files={itemsFiles}
-            onFilesAccepted={handleItemsFiles}
-            onRemoveFile={removeItemsFile}
-            multiple={true}
-          />
-        </div>
-
-        <div className="bg-card rounded-xl border shadow-sm p-6">
-          <FileDropzone
-            title="Charges & Fees"
-            description="Upload a single image showing additional charges, taxes, and fees"
-            files={chargesFiles}
-            onFilesAccepted={handleChargesFiles}
-            onRemoveFile={removeChargesFile}
-            multiple={false}
-          />
-        </div>
-      </div>
-
-      {canProcess && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => handleProcess()}
-            disabled={loading}
-            className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-60"
-          >
-            {loading ? 'Processing…' : 'Process Receipt'}
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   )
 
   const renderReview = () => {
@@ -1342,47 +1414,62 @@ function App() {
         </div>
 
         {/* People Management Section */}
-        <div className="bg-card border rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Participants</h3>
-          <div className="space-y-3">
-            {people.map((person) => (
-              <div key={person.id} className="flex items-center gap-2">
+        <Card className="hover:shadow-lg">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold">Participants</h3>
+              <Badge variant="info">{people.length} person{people.length !== 1 ? 's' : ''}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {people.map((person) => (
+                <div key={person.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <input
+                    type="text"
+                    value={person.name}
+                    onChange={(e) => updatePersonName(person.id, e.target.value)}
+                    className="flex-1 bg-white px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Person name"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removePerson(person.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border-2 border-dashed border-blue-200">
                 <input
                   type="text"
-                  value={person.name}
-                  onChange={(e) => updatePersonName(person.id, e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-lg"
-                  placeholder="Person name"
+                  value={newPersonName}
+                  onChange={(e) => setNewPersonName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addPerson()}
+                  className="flex-1 bg-white px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Add new person..."
                 />
-                <button
-                  onClick={() => removePerson(person.id)}
-                  className="px-3 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors text-sm font-medium"
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={addPerson}
                 >
-                  Remove
-                </button>
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
-            ))}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newPersonName}
-                onChange={(e) => setNewPersonName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addPerson()}
-                className="flex-1 px-3 py-2 border rounded-lg"
-                placeholder="Add new person..."
-              />
-              <button
-                onClick={addPerson}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
-              >
-                Add Person
-              </button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Items Split Table */}
-        <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <h3 className="text-lg font-semibold">Assign Items to Participants</h3>
+          </CardHeader>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-black text-white">
@@ -1475,131 +1562,201 @@ function App() {
               </div>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Calculate Split Button */}
-        <div className="flex justify-center">
-          <button
+        <div className="flex justify-center py-8">
+          <Button
+            variant="primary"
+            size="lg"
             onClick={handleCalculateSplit}
-            disabled={calculatingSplit || people.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-60"
+            isLoading={calculatingSplit}
+            disabled={people.length === 0}
+            className="gap-3"
           >
-            {calculatingSplit ? '🧮 Calculating...' : '💰 Calculate Split'}
-          </button>
+            🧮 {calculatingSplit ? 'Calculating split...' : 'Calculate Split'}
+          </Button>
         </div>
 
         {/* Split Results */}
         {splitResults && splitResults.success && (
-          <div className="bg-green-50 border-2 border-green-500 rounded-xl shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-green-700">✅ Split Calculation Complete</h3>
-              <div className="text-sm text-muted-foreground">
-                Split ID: {splitResults.split_id}
-              </div>
-            </div>
+          <div className="space-y-8">
+            {/* Header Card */}
+            <Card variant="highlighted" className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <CardContent className="py-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white text-2xl">
+                      ✓
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-green-900">Split Calculated</h3>
+                      <p className="text-sm text-green-700">Ready to finalize and save</p>
+                    </div>
+                  </div>
+                  <Badge variant="success" className="text-base px-4 py-2">
+                    ID: {splitResults.split_id.substring(0, 8)}...
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {splitResults.shares.map((share: any) => (
-                <div key={share.person_id} className="bg-white border-2 border-green-300 rounded-lg shadow-sm p-4">
-                  <h4 className="font-bold text-lg mb-3 text-green-800">{share.person_name}</h4>
-                  
-                  {share.item_breakdown && share.item_breakdown.length > 0 && (
-                    <div className="space-y-2 mb-3">
-                      <div className="text-xs font-semibold text-muted-foreground uppercase">Items:</div>
-                      {share.item_breakdown.map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="truncate mr-2">{item.item_name}</span>
-                          <span className="font-medium whitespace-nowrap">${item.allocated_cost?.toFixed(2) || '0.00'}</span>
+            {/* Share Cards Grid */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-gray-900">Share Breakdown</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {splitResults.shares.map((share: any) => (
+                  <Card key={share.person_id} className="relative overflow-hidden hover:shadow-lg border-2 border-green-100">
+                    {/* Person Header */}
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-bold text-sm">
+                          {share.person_name.charAt(0).toUpperCase()}
                         </div>
-                      ))}
+                        <h5 className="text-lg font-bold text-gray-900">{share.person_name}</h5>
+                      </div>
                     </div>
-                  )}
 
-                  <div className="border-t pt-3 space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>Items Subtotal:</span>
-                      <span className="font-medium">${(share.item_total || 0).toFixed(2)}</span>
-                    </div>
-                    
-                    {/* Individual fee breakdowns - show the total which includes fee taxes */}
-                    {share.fees_breakdown && share.fees_breakdown.map((fee: any, idx: number) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{fee.description}:</span>
-                        <span className="font-medium">${fee.total.toFixed(2)}</span>
+                    <CardContent className="pt-6">
+                      {/* Items breakdown */}
+                      {share.items && share.items.length > 0 && (
+                        <div className="mb-6">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Items Assigned</p>
+                          <div className="space-y-2">
+                            {share.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-700 truncate">{item.item_name || item.item_id}</span>
+                                <span className="font-semibold text-gray-900 whitespace-nowrap ml-2">
+                                  ${item.item_cost?.toFixed(2) || '0.00'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Breakdown Summary */}
+                      <div className="space-y-3 border-t border-gray-200 pt-4">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-700">Subtotal</span>
+                          <span className="font-semibold text-gray-900">${(share.item_total || 0).toFixed(2)}</span>
+                        </div>
+
+                        {/* Fee breakdown */}
+                        {share.fees_breakdown && share.fees_breakdown.map((fee: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-700">{fee.description}</span>
+                            <span className="font-semibold text-gray-900">${fee.total?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        ))}
+
+                        {/* Item tax */}
+                        {share.item_tax !== undefined && share.item_tax > 0 && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-700">Tax (13%)</span>
+                            <span className="font-semibold text-gray-900">${share.item_tax.toFixed(2)}</span>
+                          </div>
+                        )}
+
+                        {/* Discount */}
+                        {(share.discount_credit || share.allocated_discounts) !== undefined && (share.discount_credit || share.allocated_discounts) !== 0 && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-red-700 font-medium">Discount</span>
+                            <span className="font-semibold text-red-700">
+                              -${Math.abs(share.discount_credit || share.allocated_discounts || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Total Amount Owed */}
+                        <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                          <span className="font-bold text-gray-900">Total</span>
+                          <span className="text-2xl font-bold text-green-600">
+                            ${share.amount_owed?.toFixed(2) || '0.00'}
+                          </span>
+                        </div>
                       </div>
-                    ))}
-                    
-                    {/* Harmonized Sales Tax (item tax only, not fee taxes) */}
-                    {share.item_tax !== undefined && share.item_tax > 0 && (
-                      <div className="flex justify-between">
-                        <span>Harmonized Sales Tax:</span>
-                        <span className="font-medium">${share.item_tax.toFixed(2)}</span>
-                      </div>
-                    )}
-                    
-                    {(share.discount_credit || share.allocated_discounts) !== undefined && (share.discount_credit || share.allocated_discounts) !== 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <span>Retailer Coupon Discount:</span>
-                        <span className="font-medium">-${Math.abs(share.discount_credit || share.allocated_discounts || 0).toFixed(2)}</span>
-                      </div>
-                    )}
-                    
-                    <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2 text-green-700">
-                      <span>Total:</span>
-                      <span>${share.amount_owed?.toFixed(2) || '0.00'}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
 
+            {/* Validation Card */}
             {splitResults.total_validation && (
-              <div className="bg-white border rounded-lg p-4">
-                <div className="text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="font-semibold">Validation:</span>
-                    <span className={splitResults.total_validation.is_valid ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
-                      {splitResults.total_validation.is_valid ? '✅ Valid' : '❌ Invalid'}
-                    </span>
+              <Card className={`border-2 ${splitResults.total_validation.is_valid ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    {splitResults.total_validation.is_valid ? (
+                      <>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-600 text-white">
+                          ✓
+                        </div>
+                        <h4 className="text-lg font-bold text-green-900">Validation Passed</h4>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white">
+                          ⚠
+                        </div>
+                        <h4 className="text-lg font-bold text-red-900">Validation Issues</h4>
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span>Receipt Total:</span>
-                    <span className="font-medium">${splitResults.total_validation.receipt_total?.toFixed(2) || '0.00'}</span>
+                </CardHeader>
+                <CardContent className="grid grid-cols-3 gap-4 text-center sm:text-left">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Receipt Total</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      ${splitResults.total_validation.receipt_total?.toFixed(2) || '0.00'}
+                    </p>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Sum of Shares:</span>
-                    <span className="font-medium">${splitResults.total_validation.split_total?.toFixed(2) || '0.00'}</span>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Sum of Shares</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      ${splitResults.total_validation.split_total?.toFixed(2) || '0.00'}
+                    </p>
                   </div>
-                  {splitResults.total_validation.difference !== undefined && splitResults.total_validation.difference !== 0 && (
-                    <div className="flex justify-between text-orange-600">
-                      <span>Difference:</span>
-                      <span className="font-medium">${Math.abs(splitResults.total_validation.difference).toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Difference</p>
+                    <p className={`text-xl font-bold ${splitResults.total_validation.difference === 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                      {splitResults.total_validation.difference === 0 ? '✓ $0.00' : `$${Math.abs(splitResults.total_validation.difference || 0).toFixed(2)}`}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
+            {/* Errors Alert */}
             {splitResults.errors && splitResults.errors.length > 0 && (
-              <div className="bg-red-50 border border-red-300 rounded-lg p-4">
-                <div className="text-sm font-semibold text-red-700 mb-2">Errors:</div>
-                <ul className="text-sm text-red-600 list-disc list-inside">
+              <Alert variant="error" title="Calculation Errors">
+                <ul className="space-y-1">
                   {splitResults.errors.map((err: string, idx: number) => (
-                    <li key={idx}>{err}</li>
+                    <li key={idx} className="flex items-start gap-2">
+                      <span>•</span> {err}
+                    </li>
                   ))}
                 </ul>
-              </div>
+              </Alert>
             )}
 
-            {/* Finalize Button */}
-            <div className="flex justify-center">
-              <button
-                onClick={handleFinalizeSplit}
-                disabled={calculatingSplit || !splitResults.total_validation?.is_valid}
-                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-8 py-3 text-sm font-medium text-white shadow hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6">
+              <Button
+                variant="secondary"
+                onClick={() => setStage('review')}
               >
-                {calculatingSplit ? '💾 Saving...' : '✅ Finalize Split'}
-              </button>
+                ← Back to Review
+              </Button>
+              <Button
+                variant="success"
+                size="lg"
+                onClick={handleFinalizeSplit}
+                isLoading={calculatingSplit}
+                disabled={!splitResults.total_validation?.is_valid}
+              >
+                {calculatingSplit ? 'Saving Split...' : '💾 Finalize & Save'}
+              </Button>
             </div>
           </div>
         )}
