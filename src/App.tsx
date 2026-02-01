@@ -91,7 +91,7 @@ function App() {
   const [calculatingSplit, setCalculatingSplit] = useState(false)
 
   // const API_BASE = 'http://localhost:8000'
-  const API_BASE = 'https://splitz-6ef14ffcc1af.herokuapp.com/';
+  const API_BASE = 'https://splitz-6ef14ffcc1af.herokuapp.com';
 
   const loadReceiptsList = async () => {
     try {
