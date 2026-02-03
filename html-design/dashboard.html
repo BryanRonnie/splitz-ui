@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Splitz</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="logo-text">Splitz</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="7" height="7" stroke-width="2"/>
+                    <rect x="14" y="3" width="7" height="7" stroke-width="2"/>
+                    <rect x="14" y="14" width="7" height="7" stroke-width="2"/>
+                    <rect x="3" y="14" width="7" height="7" stroke-width="2"/>
+                </svg>
+                <span>All Receipts</span>
+            </a>
+            
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    <polyline points="12 6 12 12 16 14" stroke-width="2"/>
+                </svg>
+                <span>Recent</span>
+            </a>
+            
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke-width="2"/>
+                </svg>
+                <span>Favorites</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-section">
+            <div class="section-header">
+                <h3 class="section-title">Folders</h3>
+                <button class="btn-icon-small" id="createFolderBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="12" y1="5" x2="12" y2="19" stroke-width="2"/>
+                        <line x1="5" y1="12" x2="19" y2="12" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="folder-list" id="folderList">
+                <div class="folder-item active" data-folder="work">
+                    <svg class="folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke-width="2"/>
+                    </svg>
+                    <span class="folder-name">Work Lunches</span>
+                    <span class="folder-count">12</span>
+                </div>
+                
+                <div class="folder-item" data-folder="personal">
+                    <svg class="folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke-width="2"/>
+                    </svg>
+                    <span class="folder-name">Personal</span>
+                    <span class="folder-count">8</span>
+                </div>
+                
+                <div class="folder-item" data-folder="travel">
+                    <svg class="folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke-width="2"/>
+                    </svg>
+                    <span class="folder-name">Travel</span>
+                    <span class="folder-count">5</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="avatar">
+                    <span>JD</span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name">John Doe</div>
+                    <div class="user-email">john@example.com</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <!-- Top Bar -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1 class="page-title">Work Lunches</h1>
+                <span class="receipt-count">12 receipts</span>
+            </div>
+            
+            <div class="header-actions">
+                <div class="search-bar">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="11" cy="11" r="8" stroke-width="2"/>
+                        <path d="m21 21-4.35-4.35" stroke-width="2"/>
+                    </svg>
+                    <input type="text" placeholder="Search receipts..." class="search-input">
+                </div>
+                
+                <button class="btn btn-primary">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="12" y1="5" x2="12" y2="19" stroke-width="2"/>
+                        <line x1="5" y1="12" x2="19" y2="12" stroke-width="2"/>
+                    </svg>
+                    New Receipt
+                </button>
+            </div>
+        </header>
+
+        <!-- Receipts Grid -->
+        <div class="receipts-container">
+            <!-- Receipt Stack 1 -->
+            <div class="receipt-stack">
+                <div class="receipt-card" style="--rotation: 2deg;">
+                    <div class="receipt-paper">
+                        <div class="receipt-top">
+                            <div class="receipt-vendor">Olive Garden</div>
+                            <div class="receipt-date">Jan 28, 2026</div>
+                        </div>
+                        
+                        <div class="receipt-items">
+                            <div class="receipt-item">
+                                <span>Pasta Carbonara</span>
+                                <span>$18.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Caesar Salad</span>
+                                <span>$8.50</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Iced Tea</span>
+                                <span>$3.50</span>
+                            </div>
+                        </div>
+                        
+                        <div class="receipt-total">
+                            <div class="total-left">
+                                <span>Total</span>
+                                <span class="items-count-badge">3 items</span>
+                            </div>
+                            <span class="total-amount">$30.99</span>
+                        </div>
+                        
+                        <div class="receipt-footer">
+                            <div class="receipt-people">
+                                <div class="avatar-group">
+                                    <div class="avatar-small">JD</div>
+                                    <div class="avatar-small">SM</div>
+                                    <div class="avatar-small">+2</div>
+                                </div>
+                            </div>
+                            <div class="receipt-status status-split">Split</div>
+                        </div>
+                    </div>
+                    
+                    <div class="receipt-actions">
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-width="2"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6" stroke-width="2"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Stack 2 -->
+            <div class="receipt-stack">
+                <div class="receipt-card" style="--rotation: -1deg;">
+                    <div class="receipt-paper">
+                        <div class="receipt-top">
+                            <div class="receipt-vendor">Starbucks</div>
+                            <div class="receipt-date">Jan 26, 2026</div>
+                        </div>
+                        
+                        <div class="receipt-items">
+                            <div class="receipt-item">
+                                <span>Grande Latte</span>
+                                <span>$5.25</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Croissant</span>
+                                <span>$3.95</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Espresso Shot</span>
+                                <span>$0.90</span>
+                            </div>
+                        </div>
+                        
+                        <div class="receipt-total">
+                            <div class="total-left" style="display: flex;">
+                                <span>Total</span>
+                                <span class="items-count-badge">3 items</span>
+                            </div>
+                            <span class="total-amount">$10.10</span>
+                        </div>
+                        
+                        <div class="receipt-footer">
+                            <div class="receipt-people">
+                                <div class="avatar-group">
+                                    <div class="avatar-small">JD</div>
+                                    <div class="avatar-small">AS</div>
+                                </div>
+                            </div>
+                            <div class="receipt-status status-pending">Pending</div>
+                        </div>
+                    </div>
+                    
+                    <div class="receipt-actions">
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-width="2"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6" stroke-width="2"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Stack 3 -->
+            <div class="receipt-stack">
+                <div class="receipt-card" style="--rotation: 1.5deg;">
+                    <div class="receipt-paper">
+                        <div class="receipt-top">
+                            <div class="receipt-vendor">Chipotle</div>
+                            <div class="receipt-date">Jan 25, 2026</div>
+                        </div>
+                        
+                        <div class="receipt-items">
+                            <div class="receipt-item">
+                                <span>Burrito Bowl</span>
+                                <span>$9.50</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Guacamole</span>
+                                <span>$2.50</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Chips & Salsa</span>
+                                <span>$3.75</span>
+                            </div>
+                        </div>
+                        
+                        <div class="receipt-total">
+                            <div class="total-left">
+                                <span>Total</span>
+                                <span class="items-count-badge">3 items</span>
+                            </div>
+                            <span class="total-amount">$15.75</span>
+                        </div>
+                        
+                        <div class="receipt-footer">
+                            <div class="receipt-people">
+                                <div class="avatar-group">
+                                    <div class="avatar-small">JD</div>
+                                </div>
+                            </div>
+                            <div class="receipt-status status-paid">Paid</div>
+                        </div>
+                    </div>
+                    
+                    <div class="receipt-actions">
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-width="2"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6" stroke-width="2"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Stack 4 - Many Items -->
+            <div class="receipt-stack">
+                <div class="receipt-card" style="--rotation: -2deg;">
+                    <div class="receipt-paper extended">
+                        <div class="receipt-top">
+                            <div class="receipt-vendor">Whole Foods</div>
+                            <div class="receipt-date">Jan 24, 2026</div>
+                        </div>
+                        
+                        <div class="receipt-items has-more">
+                            <div class="receipt-item">
+                                <span>Organic Bananas</span>
+                                <span>$3.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Almond Milk</span>
+                                <span>$4.50</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Greek Yogurt (6pk)</span>
+                                <span>$8.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Chicken Breast</span>
+                                <span>$12.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Broccoli</span>
+                                <span>$2.49</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Sweet Potatoes</span>
+                                <span>$3.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Avocados (4pk)</span>
+                                <span>$5.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Quinoa</span>
+                                <span>$6.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Olive Oil</span>
+                                <span>$14.99</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span>Coffee Beans</span>
+                                <span>$11.99</span>
+                            </div>
+                        </div>
+                        
+                        <div class="receipt-total">
+                            <div class="total-left">
+                                <span>Total</span>
+                                <span class="items-count-badge">10 items</span>
+                            </div>
+                            <span class="total-amount">$76.91</span>
+                        </div>
+                        
+                        <div class="receipt-footer">
+                            <div class="receipt-people">
+                                <div class="avatar-group">
+                                    <div class="avatar-small">JD</div>
+                                    <div class="avatar-small">AS</div>
+                                </div>
+                            </div>
+                            <div class="receipt-status status-pending">Pending</div>
+                        </div>
+                    </div>
+                    
+                    <div class="receipt-actions">
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-width="2"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6" stroke-width="2"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Stack 5 - Few Items -->
+            <div class="receipt-stack">
+                <div class="receipt-card" style="--rotation: 1deg;">
+                    <div class="receipt-paper compact">
+                        <div class="receipt-top">
+                            <div class="receipt-vendor">7-Eleven</div>
+                            <div class="receipt-date">Jan 23, 2026</div>
+                        </div>
+                        
+                        <div class="receipt-items few-items">
+                            <div class="receipt-item">
+                                <span>Red Bull</span>
+                                <span>$3.49</span>
+                            </div>
+                        </div>
+                        
+                        <div class="receipt-total">
+                            <div class="total-left">
+                                <span>Total</span>
+                                <span class="items-count-badge">1 item</span>
+                            </div>
+                            <span class="total-amount">$3.49</span>
+                        </div>
+                        
+                        <div class="receipt-footer">
+                            <div class="receipt-people">
+                                <div class="avatar-group">
+                                    <div class="avatar-small">JD</div>
+                                </div>
+                            </div>
+                            <div class="receipt-status status-paid">Paid</div>
+                        </div>
+                    </div>
+                    
+                    <div class="receipt-actions">
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke-width="2"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke-width="2"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="3 6 5 6 21 6" stroke-width="2"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State for Adding -->
+            <div class="receipt-stack add-new">
+                <div class="add-receipt-card">
+                    <svg class="add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="12" y1="5" x2="12" y2="19" stroke-width="2"/>
+                        <line x1="5" y1="12" x2="19" y2="12" stroke-width="2"/>
+                    </svg>
+                    <span>Add Receipt</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Folder Modal -->
+    <div class="modal" id="createFolderModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Folder</h2>
+                <button class="modal-close" id="closeModalBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="18" y1="6" x2="6" y2="18" stroke-width="2"/>
+                        <line x1="6" y1="6" x2="18" y2="18" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="folderName" class="form-label">Folder Name</label>
+                    <input type="text" id="folderName" class="form-input" placeholder="e.g., Team Dinners">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Folder Color</label>
+                    <div class="color-picker">
+                        <div class="color-option" style="background: #8B5CF6;" data-color="#8B5CF6"></div>
+                        <div class="color-option" style="background: #3B82F6;" data-color="#3B82F6"></div>
+                        <div class="color-option" style="background: #10B981;" data-color="#10B981"></div>
+                        <div class="color-option" style="background: #F59E0B;" data-color="#F59E0B"></div>
+                        <div class="color-option" style="background: #EF4444;" data-color="#EF4444"></div>
+                        <div class="color-option active" style="background: #6366F1;" data-color="#6366F1"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="cancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="createBtn">Create Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
